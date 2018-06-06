@@ -76,8 +76,8 @@ SOFTWARE.
 #include "eqcuda.hpp"
 #include "sm_32_intrinsics.h"
 
-#define WN	200
-#define WK	9
+#define WN	192
+#define WK	7
 #define NDIGITS		(WK+1)
 #define DIGITBITS	(WN/(NDIGITS))
 #define PROOFSIZE (1<<WK)

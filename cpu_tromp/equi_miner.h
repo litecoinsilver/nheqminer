@@ -37,7 +37,7 @@ typedef u32 au32;
 #endif
 
 #ifndef RESTBITS
-#define RESTBITS	8
+#define RESTBITS	4
 #endif
 
 // 2_log of number of buckets
@@ -335,23 +335,29 @@ struct equi {
       }
     }
     u32 getxhash0(const slot0* pslot) const {
-#if WN == 200 && RESTBITS == 4
+#if DIGITBITS % 8 == 4 && RESTBITS == 4
       return pslot->hash->bytes[prevbo] >> 4;
-#elif WN == 200 && RESTBITS == 8
+#elif DIGITBITS % 8 == 4 && RESTBITS == 8
       return (pslot->hash->bytes[prevbo] & 0xf) << 4 | pslot->hash->bytes[prevbo+1] >> 4;
-#elif WN == 144 && RESTBITS == 4
+#elif DIGITBITS % 8 == 4 && RESTBITS == 10
+      return (pslot->hash->bytes[prevbo] & 0x3f) << 4 | pslot->hash->bytes[prevbo+1] >> 4;
+#elif DIGITBITS % 8 == 0 && RESTBITS == 4
       return pslot->hash->bytes[prevbo] & 0xf;
+#elif RESTBITS == 0
+      return 0;
 #else
 #error non implemented
 #endif
     }
     u32 getxhash1(const slot1* pslot) const {
-#if WN == 200 && RESTBITS == 4
+#if DIGITBITS % 4 == 0 && RESTBITS == 4
       return pslot->hash->bytes[prevbo] & 0xf;
-#elif WN == 200 && RESTBITS == 8
+#elif DIGITBITS % 4 == 0 && RESTBITS == 8
       return pslot->hash->bytes[prevbo];
-#elif WN == 144 && RESTBITS == 4
-      return pslot->hash->bytes[prevbo] & 0xf;
+#elif DIGITBITS % 4 == 0 && RESTBITS == 10
+      return (pslot->hash->bytes[prevbo] & 0x3) << 8 | pslot->hash->bytes[prevbo+1];
+#elif RESTBITS == 0
+      return 0;
 #else
 #error non implemented
 #endif
@@ -435,15 +441,13 @@ struct equi {
       blake2b_final(&state, hash, HASHOUT);
       for (u32 i = 0; i<HASHESPERBLAKE; i++) {
         const uchar *ph = hash + i * WN/8;
-#if BUCKBITS == 16 && RESTBITS == 4
-        const u32 bucketid = ((u32)ph[0] << 8) | ph[1];
-#elif BUCKBITS == 12 && RESTBITS == 8
-        const u32 bucketid = ((u32)ph[0] << 4) | ph[1] >> 4;
-#elif BUCKBITS == 20 && RESTBITS == 4
-        const u32 bucketid = ((((u32)ph[0] << 8) | ph[1]) << 4) | ph[2] >> 4;
-#elif BUCKBITS == 12 && RESTBITS == 4
-        const u32 bucketid = ((u32)ph[0] << 4) | ph[1] >> 4;
-        const u32 xhash = ph[1] & 0xf;
+          // figure out bucket for this hash by extracting leading BUCKBITS bits
+#if BUCKBITS <= 8
+          const u32 bucketid = (u32)(ph[0] >> (8-BUCKBITS));
+#elif BUCKBITS > 8 && BUCKBITS <= 16
+          const u32 bucketid = ((u32)ph[0] << (BUCKBITS-8)) | ph[1] >> (16-BUCKBITS);
+#elif BUCKBITS > 16
+          const u32 bucketid = ((((u32)ph[0] << 8) | ph[1]) << (BUCKBITS-16)) | ph[2] >> (24-BUCKBITS);
 #else
 #error not implemented
 #endif
@@ -484,13 +488,18 @@ struct equi {
 #if WN == 200 && BUCKBITS == 12 && RESTBITS == 8
           xorbucketid = (((u32)(bytes0[htl.prevbo+1] ^ bytes1[htl.prevbo+1]) & 0xf) << 8)
                              | (bytes0[htl.prevbo+2] ^ bytes1[htl.prevbo+2]);
-#elif WN == 144 && BUCKBITS == 20 && RESTBITS == 4
+#elif WN == 200 && BUCKBITS == 10 && RESTBITS == 10
+          xorbucketid = (((u32)(bytes0[htl.prevbo+1] ^ bytes1[htl.prevbo+1]) & 0xf) << 6)
+                             | (bytes0[htl.prevbo+2] ^ bytes1[htl.prevbo+2]) >> 2;
+#elif WN % 24 == 0 && BUCKBITS == 20 && RESTBITS == 4
           xorbucketid = ((((u32)(bytes0[htl.prevbo+1] ^ bytes1[htl.prevbo+1]) << 8)
                               | (bytes0[htl.prevbo+2] ^ bytes1[htl.prevbo+2])) << 4)
                               | (bytes0[htl.prevbo+3] ^ bytes1[htl.prevbo+3]) >> 4;
 #elif WN == 96 && BUCKBITS == 12 && RESTBITS == 4
           xorbucketid = ((u32)(bytes0[htl.prevbo+1] ^ bytes1[htl.prevbo+1]) << 4)
                             | (bytes0[htl.prevbo+2] ^ bytes1[htl.prevbo+2]) >> 4;
+#elif WN == 48 && BUCKBITS == 4 && RESTBITS == 4
+          xorbucketid = (u32)(bytes0[htl.prevbo+1] ^ bytes1[htl.prevbo+1]) >> 4;
 #else
 #error not implemented
 #endif
@@ -533,13 +542,18 @@ struct equi {
 #if WN == 200 && BUCKBITS == 12 && RESTBITS == 8
           xorbucketid = ((u32)(bytes0[htl.prevbo+1] ^ bytes1[htl.prevbo+1]) << 4)
                             | (bytes0[htl.prevbo+2] ^ bytes1[htl.prevbo+2]) >> 4;
-#elif WN == 144 && BUCKBITS == 20 && RESTBITS == 4
+#elif WN == 200 && BUCKBITS == 10 && RESTBITS == 10
+          xorbucketid = ((u32)(bytes0[htl.prevbo+2] ^ bytes1[htl.prevbo+2]) << 2)
+                            | (bytes0[htl.prevbo+3] ^ bytes1[htl.prevbo+3]) >> 6;
+#elif WN % 24 == 0 && BUCKBITS == 20 && RESTBITS == 4
           xorbucketid = ((((u32)(bytes0[htl.prevbo+1] ^ bytes1[htl.prevbo+1]) << 8)
                               | (bytes0[htl.prevbo+2] ^ bytes1[htl.prevbo+2])) << 4)
                               | (bytes0[htl.prevbo+3] ^ bytes1[htl.prevbo+3]) >> 4;
 #elif WN == 96 && BUCKBITS == 12 && RESTBITS == 4
           xorbucketid = ((u32)(bytes0[htl.prevbo+1] ^ bytes1[htl.prevbo+1]) << 4)
                             | (bytes0[htl.prevbo+2] ^ bytes1[htl.prevbo+2]) >> 4;
+#elif WN == 48 && BUCKBITS == 4 && RESTBITS == 4
+          xorbucketid = (u32)(bytes0[htl.prevbo+1] ^ bytes1[htl.prevbo+1]) >> 4;
 #else
 #error not implemented
 #endif

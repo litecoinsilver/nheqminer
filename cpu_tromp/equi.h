@@ -1,6 +1,8 @@
 #pragma once
 // Equihash solver
-// Copyright (c) 2016-2016 John Tromp
+// Copyright (c) 2016-2017 John Tromp
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 
 #include "blake2/blake2.h"
@@ -26,11 +28,11 @@ typedef unsigned char uchar;
 // algorithm parameters, prefixed with W to reduce include file conflicts
 
 #ifndef WN
-#define WN	200
+#define WN	192
 #endif
 
 #ifndef WK
-#define WK	9
+#define WK	7
 #endif
 
 #define PARAMETER_N WN

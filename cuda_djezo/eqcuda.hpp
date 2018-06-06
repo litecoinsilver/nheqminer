@@ -3,7 +3,9 @@
 #include "cuda.h"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+#if CUDART_VERSION < 9000
 #include "device_functions_decls.h"
+#endif
 #include "../cpu_tromp/blake2/blake2.h"
 #include "cuda_djezo.hpp"
 
